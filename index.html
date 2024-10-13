@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>有为加密货币价格测试</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        #status {
+            text-align: center;
+            font-style: italic;
+            margin-bottom: 20px;
+            color: #7f8c8d;
+        }
+        #prices {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        .price-card {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+        .price-card:hover {
+            transform: translateY(-5px);
+        }
+        .price-up {
+            color: #27ae60;
+        }
+        .price-down {
+            color: #c0392b;
+        }
+        .symbol {
+            font-weight: bold;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+        .price {
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+        .change {
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <h1>有为加密货币价格测试</h1>
+    <div id="status">正在连接...</div>
+    <div id="prices"></div>
+
+    <script>
+        const wsUrl = 'wss://ws.bitget.com/spot/v1/stream';
+        let ws;
+        let lastPrices = {};
+        let connectionAttempts = 0;
+        const maxAttempts = 5;
+        const symbols = ['BTC', 'ETH', 'SOL', 'ETC', 'GMT'];
+
+        function connect() {
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                console.log('WebSocket 连接已建立');
+                document.getElementById('status').textContent = '已连接';
+                connectionAttempts = 0;
+                subscribe();
+            };
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.data && Array.isArray(data.data)) {
+                    data.data.forEach(updatePrice);
+                }
+            };
+
+            ws.onclose = function(event) {
+                console.log('WebSocket 连接已关闭', event);
+                document.getElementById('status').textContent = '连接已断开，正在尝试重新连接...';
+                if (connectionAttempts < maxAttempts) {
+                    connectionAttempts++;
+                    setTimeout(connect, 5000);
+                } else {
+                    document.getElementById('status').textContent = '无法建立连接，请刷新页面重试。';
+                }
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket 错误:', error);
+                document.getElementById('status').textContent = 'WebSocket 错误，请查看控制台';
+            };
+        }
+
+        function subscribe() {
+            const subscribeMessage = {
+                "op": "subscribe",
+                "args": symbols.map(symbol => ({
+                    "instType": "SP",
+                    "channel": "ticker",
+                    "instId": `${symbol}USDT`
+                }))
+            };
+            ws.send(JSON.stringify(subscribeMessage));
+            console.log('已发送订阅消息');
+        }
+
+        function updatePrice(data) {
+            const symbol = data.instId.replace('USDT', '');
+            const price = parseFloat(data.last).toFixed(4);
+            const change24h = parseFloat(data.change24h).toFixed(2);
+
+            let priceClass = '';
+            if (lastPrices[symbol]) {
+                if (price > lastPrices[symbol]) {
+                    priceClass = 'price-up';
+                } else if (price < lastPrices[symbol]) {
+                    priceClass = 'price-down';
+                }
+            }
+            lastPrices[symbol] = price;
+
+            let priceElement = document.getElementById(`${symbol.toLowerCase()}-price`);
+            if (!priceElement) {
+                priceElement = document.createElement('div');
+                priceElement.id = `${symbol.toLowerCase()}-price`;
+                priceElement.className = 'price-card';
+                document.getElementById('prices').appendChild(priceElement);
+            }
+
+            priceElement.innerHTML = `
+                <div class="symbol">${symbol}</div>
+                <div class="price ${priceClass}">$${price}</div>
+                <div class="change">24小时变化: ${change24h}%</div>
+            `;
+        }
+
+        connect();
+
+        setInterval(() => {
+            if (ws.readyState !== WebSocket.OPEN) {
+                document.getElementById('status').textContent = '连接已断开，正在尝试重新连接...';
+                connect();
+            }
+        }, 15000);
+    </script>
+</body>
+</html>

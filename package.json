@@ -1,0 +1,8 @@
+{
+  "name": "bitget-websocket-price-tracker",
+  "version": "1.0.0",
+  "description": "Bitget WebSocket BTC and ETH Price Tracker",
+  "scripts": {
+    "build": "echo 'No build step required'"
+  }
+}
